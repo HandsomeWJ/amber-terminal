@@ -65,7 +65,7 @@ test('price crossing a drawn line is detected bar by bar', () => {
   assert.deepEqual(series.map((_, i) => test(i)), [false, false, false, true, false]);
 });
 
-// Jeff's asks: exit on whichever rule fires first, and a time exit when nothing else has.
+// Exit on whichever rule fires first, and a time exit when nothing else has.
 const flat = (closes) => closes.map((c, i) => ({ time: 1700000000 + i * 86400, open: c, high: c, low: c, close: c, volume: 1 }));
 const noCosts = { feePct: 0, slippagePct: 0 };
 
@@ -97,7 +97,7 @@ test('maxBarsInTrade closes a trade after that many bars unless an exit fires fi
   assert.ok(backtest(b, { ...s, maxBarsInTrade: 0 }).trades.length === 1, '0 turns it off');
 });
 
-// @mats8038: real tick and spread simulation.
+// Real tick and spread simulation.
 const day = (i, o, h, l, c) => ({ time: 1700000000 + i * 86400, open: o, high: h, low: l, close: c, volume: 1 });
 
 test('the spread fills buys at the ask and sells at the bid', () => {

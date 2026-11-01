@@ -2354,7 +2354,7 @@ export const INDICATORS = [
     },
   },
   {
-    // Lewis's hedge fund method: label each bar bull, bear or sideways by its trailing return,
+    // Markov regime method: label each bar bull, bear or sideways by its trailing return,
     // count how often each state follows each other one, and read tomorrow's odds from today's
     // row. Walk-forward: each bar only uses transitions that had already happened.
     id: "markov",

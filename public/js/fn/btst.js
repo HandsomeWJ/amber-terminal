@@ -144,9 +144,6 @@ export default [
         html(
           `<p class="para dim" style="margin-top:8px">A backtest shows what rules did on past prices. These checks ask whether that result would survive new data, nearby settings, double costs and a reshuffle of the same trades. Passing them doesn't make a strategy profitable; failing them is a reason not to trust it.</p>`,
         ),
-        html(
-          `<p class="para dim" style="margin-top:8px">To enter this strategy in the monthly competition in <a href="https://www.skool.com/part-time-quant-academy" target="_blank" rel="noopener">Part-Time Quant Academy</a>, ask Claude for the BTST strategy as JSON. Then paste it into <b>Import a strategy from Amber Terminal</b> on the <a href="https://app.part-timequant.com/competition" target="_blank" rel="noopener">competition page</a>. The builder there sets its own stop and position size, and checks the strategy before you submit.</p>`,
-        ),
       );
     },
   },

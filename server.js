@@ -14,7 +14,6 @@ import * as data from "./lib/providers.js";
 import * as feeds from "./lib/feeds.js";
 import * as alerts from "./lib/alerts.js";
 import * as store from "./lib/store.js";
-import * as ptq from "./lib/ptq.js";
 import * as info from "./lib/market-info.js";
 import * as bbg from "./lib/bloomberg-fields.js";
 import { yahooQuotes } from "./lib/fn/board.js";
@@ -375,20 +374,6 @@ async function handle(req, res) {
       setTimeout(() => process.exit(0), 100);
       return;
     }
-    // PTQ connector: reads and fail-safe controls only. There is no route here that arms a
-    // strategy or places an order; that stays inside PTQ (`ptq arm-strategy`).
-    if (p === "/api/ptq/status") return send(res, 200, await ptq.status());
-    if (p === "/api/ptq/overview") return send(res, 200, await ptq.overview());
-    if (p === "/api/ptq/check" && req.method === "POST") {
-      try {
-        return send(res, 200, await ptq.check(await readBody(req)));
-      } catch (e) {
-        return send(res, e.status || 502, { error: e.message, code: e.code, problems: e.problems || [], notes: e.notes || [] });
-      }
-    }
-    if (p === "/api/ptq/kill-switch" && req.method === "POST") return send(res, 200, await ptq.engageKillSwitch());
-    const disarmMatch = /^\/api\/ptq\/arms\/([^/]+)\/disarm$/.exec(p);
-    if (disarmMatch && req.method === "POST") return send(res, 200, await ptq.disarm(decodeURIComponent(disarmMatch[1])));
     // Bloomberg's Excel functions as URLs, for Excel (Data > From Web), pandas.read_csv and scripts. Read-only GETs,
     // so no app header is needed; the server still only answers to this computer.
     if (p === "/api/about")

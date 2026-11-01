@@ -1,5 +1,5 @@
 // Quant checks for a strategy tester result: is the backtest real, or luck and overfitting?
-// The methods are the published ones quant desks use (and PTQ runs):
+// The methods are the published ones quant desks use:
 //   - walk-forward: pick the best settings on the past only, then score them on the next stretch
 //   - probability of backtest overfitting (PBO) by combinatorially symmetric cross-validation
 //   - probabilistic and deflated Sharpe ratio (Bailey & Lopez de Prado), for skew, fat tails and

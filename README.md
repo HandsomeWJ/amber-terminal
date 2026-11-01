@@ -6,9 +6,9 @@ Every number comes from a public source that needs no account and no API key. It
 
 ## Install
 
-**With an AI coding agent (easiest).** Paste the setup prompt from part-timequant.com/bloomberg into Claude Code or Codex. It checks your machine, installs this, tests every data source from your connection, sets the panels for what you follow and opens it in your browser.
+**With an AI coding agent (easiest).** Paste the setup prompt in [INSTALL-PROMPT.md](INSTALL-PROMPT.md) into Claude Code or Codex. It checks your machine, installs this, tests every data source from your connection, sets the panels for what you follow and opens it in your browser.
 
-**By hand.** Install Node.js 18 or newer from [nodejs.org](https://nodejs.org), then in this folder:
+**By hand.** Install Node.js 18 or newer from [nodejs.org](https://nodejs.org). Download [main.zip](https://github.com/HandsomeWJ/amber-terminal/archive/refs/heads/main.zip) and unzip it (the folder inside is `amber-terminal-main`; rename it to `amber-terminal`), or clone it: `git clone https://github.com/HandsomeWJ/amber-terminal.git`. Then in that folder:
 
 ```bash
 node scripts/check.js
@@ -19,6 +19,18 @@ node scripts/launch.js
 ```
 
 There's no `npm install` step. Next time, double-click `start.command` (Mac) or `start.bat` (Windows), or run `./start.sh` (Linux). Stop it with `node scripts/stop.js`.
+
+**Update.** Paste the setup prompt again, in the same folder as the first time. By hand, from the folder that holds `amber-terminal` (macOS, Linux or Git Bash):
+
+```bash
+node amber-terminal/scripts/stop.js
+```
+
+```bash
+curl -fsSL -o amber-terminal.tar.gz https://github.com/HandsomeWJ/amber-terminal/archive/refs/heads/main.tar.gz && tar -xzf amber-terminal.tar.gz --strip-components=1 -C amber-terminal && rm amber-terminal.tar.gz
+```
+
+The download has no `data` folder, so your layout stays as it is. Don't drag a new download over the old folder in Finder or Explorer: replacing a folder deletes everything in it, including `data`.
 
 ## How to use it
 
@@ -154,7 +166,7 @@ The screens, BDP and BDH, and Claude's tools all read through those files, so th
 
 ## What it doesn't do
 
-There's no live order book. Some stock, index and futures prices run up to 15 minutes behind, depending on the exchange. Filings, insiders, holders and options are for US-listed securities. It doesn't place trades; to trade a strategy for real, connect PTQ (part-timequant.com). Use your broker's prices to place orders.
+There's no live order book. Some stock, index and futures prices run up to 15 minutes behind, depending on the exchange. Filings, insiders, holders and options are for US-listed securities. It doesn't place trades: it's for research and backtesting. Use your broker's prices to place orders.
 
 ## Commands
 
@@ -167,5 +179,7 @@ There's no live order book. Some stock, index and futures prices run up to 15 mi
 | `node scripts/test.js` | The offline tests |
 
 ## Credits
+
+MIT for this project's code (copyright Lewis Jackson, see `LICENSE`). This repo is a fork of Amber Terminal 1.0.0 with the links to the author's websites, the competition promotions and the connector for the author's separate trading product removed.
 
 Charts are drawn with [TradingView Lightweight Charts™](https://www.tradingview.com/) (Copyright TradingView, Inc.), used under the Apache License 2.0. The library is in `public/vendor/` with its licence header.

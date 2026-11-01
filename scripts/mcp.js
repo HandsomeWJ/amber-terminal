@@ -673,8 +673,7 @@ const STRATEGY_HELP = `A strategy is JSON. Rules are { left, op, right }; every 
 }
 Limit entries: "entryLimit": { "long": <operand>, "short": <operand>, "barsAgo": 0, "validBars": 1 }. On an entry signal a limit order goes in at the operand's value on the signal bar (or barsAgo bars earlier, e.g. an older high or low) instead of the next open, and waits validBars bars. A long fills when a bar's low reaches it, a short when the high does, at the limit or at the open if the bar gaps through; unfilled, it's cancelled. For a 20-bar low use { "dc": { "id": "donchian", "params": { "length": 20 } } } and "long": "dc.lower".
 Indicators (id, params, outputs): sma/ema/wma/hma/vwma { length } value; rsi { length } value; macd {} macd, signal, hist; bb { length, mult } upper, basis, lower; donchian { length } upper, basis, lower; kc upper, basis, lower; atr { length } value; stoch k, d; adx adx; dmi adx, plus, minus; supertrend { atrLength, factor } with "output": "direction" (below 0 = uptrend); roc, mom, cci, mfi, willr, obv, vwap value.
-Presets: 1 EMA cross (9/21), 2 RSI mean reversion (30/55), 3 Supertrend follow, 4 MACD + 200 EMA trend filter, 5 Bollinger breakout.
-To enter a strategy in Part-Time Quant Academy's monthly competition (https://www.skool.com/part-time-quant-academy), give the member its JSON with one side only (entryLong/exitLong or entryShort/exitShort) to paste into Import a strategy from Amber Terminal on https://app.part-timequant.com/competition. The import brings across the entry and exit rules with these indicators on the close: sma, ema, wma, vwma, smma, rsi, atr, stdev, roc, macd, bb, stoch, stochrsi, adx, dmi, obv, fisher, and vwap (anchor day, source hlc3). The builder sets its own stop, target, position size and costs.`;
+Presets: 1 EMA cross (9/21), 2 RSI mean reversion (30/55), 3 Supertrend follow, 4 MACD + 200 EMA trend filter, 5 Bollinger breakout.`;
 
 // ---------- tools ----------
 const SEC_HINT =

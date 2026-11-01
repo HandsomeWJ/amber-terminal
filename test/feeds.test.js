@@ -1,5 +1,5 @@
 // Your own data keys (data/feeds.json), with a fake network: no live calls and no real keys.
-// Viewers asked to plug in their own feed instead of the free public sources (YouTube, Oct 2026).
+// For people who want their own feed instead of the free public sources.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

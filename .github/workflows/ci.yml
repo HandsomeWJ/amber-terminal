@@ -18,3 +18,96 @@ jobs:
       # Hits the live public sources. A source that's blocked or busy from the runner is reported, not failed.
       - name: Smoke test (real server, real data)
         run: node scripts/smoke.js
+
+  # Runs the setup prompt's own commands (INSTALL-PROMPT.md) in every shell it names, without an
+  # AI agent, from a downloaded archive (no git). Each download runs twice, the second time over
+  # a saved data folder, the way an update does. The prompt fetches refs/heads/main; CI fetches
+  # the commit under test with the same commands.
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, shell: powershell }
+          - { os: windows-latest, shell: cmd }
+          - { os: windows-latest, shell: bash }
+          - { os: macos-latest, shell: bash }
+          - { os: ubuntu-latest, shell: bash }
+    runs-on: ${{ matrix.os }}
+    env:
+      QT_NO_OPEN: "1"
+      TARBALL: https://github.com/${{ github.repository }}/archive/${{ github.sha }}.tar.gz
+      ZIPBALL: https://github.com/${{ github.repository }}/archive/${{ github.sha }}.zip
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download and unpack (Windows PowerShell 5, as in the prompt)
+        if: matrix.shell == 'powershell'
+        shell: powershell
+        run: |
+          Set-Location $env:USERPROFILE
+          New-Item -ItemType Directory -Force amber-terminal | Out-Null
+          Remove-Item "$env:TEMP\amber-terminal.zip" -ErrorAction SilentlyContinue
+          curl.exe -fsSL -o "$env:TEMP\amber-terminal.zip" $env:ZIPBALL
+          if ($LASTEXITCODE -eq 0) { & "$env:SystemRoot\System32\tar.exe" -xf "$env:TEMP\amber-terminal.zip" --strip-components=1 -C amber-terminal; Remove-Item "$env:TEMP\amber-terminal.zip" }
+          if (-not (Test-Path amber-terminal\server.js)) { exit 1 }
+          New-Item -ItemType Directory -Force amber-terminal\data | Out-Null
+          Set-Content amber-terminal\data\keep.txt saved
+          New-Item -ItemType Directory -Force amber-terminal | Out-Null
+          Remove-Item "$env:TEMP\amber-terminal.zip" -ErrorAction SilentlyContinue
+          curl.exe -fsSL -o "$env:TEMP\amber-terminal.zip" $env:ZIPBALL
+          if ($LASTEXITCODE -eq 0) { & "$env:SystemRoot\System32\tar.exe" -xf "$env:TEMP\amber-terminal.zip" --strip-components=1 -C amber-terminal; Remove-Item "$env:TEMP\amber-terminal.zip" }
+          if (-not (Test-Path amber-terminal\data\keep.txt)) { exit 1 }
+          if (Test-Path "$env:TEMP\amber-terminal.zip") { exit 1 }
+          Remove-Item -Recurse amber-terminal\data
+      - name: Download and unpack (Windows cmd, as in the prompt)
+        if: matrix.shell == 'cmd'
+        shell: cmd
+        run: |
+          cd /d %USERPROFILE%
+          if not exist amber-terminal mkdir amber-terminal
+          del "%TEMP%\amber-terminal.zip" 2>nul
+          curl.exe -fsSL -o "%TEMP%\amber-terminal.zip" %ZIPBALL% && "%SystemRoot%\System32\tar.exe" -xf "%TEMP%\amber-terminal.zip" --strip-components=1 -C amber-terminal && del "%TEMP%\amber-terminal.zip"
+          if not exist amber-terminal\server.js exit /b 1
+          mkdir amber-terminal\data
+          echo saved> amber-terminal\data\keep.txt
+          if not exist amber-terminal mkdir amber-terminal
+          del "%TEMP%\amber-terminal.zip" 2>nul
+          curl.exe -fsSL -o "%TEMP%\amber-terminal.zip" %ZIPBALL% && "%SystemRoot%\System32\tar.exe" -xf "%TEMP%\amber-terminal.zip" --strip-components=1 -C amber-terminal && del "%TEMP%\amber-terminal.zip"
+          if not exist amber-terminal\data\keep.txt exit /b 1
+          if exist "%TEMP%\amber-terminal.zip" exit /b 1
+          rmdir /s /q amber-terminal\data
+      - name: Download and unpack (macOS, Linux, Git Bash, as in the prompt)
+        if: matrix.shell == 'bash'
+        shell: bash
+        run: |
+          cd ~
+          mkdir -p amber-terminal && curl -fsSL -o amber-terminal.tar.gz "$TARBALL" && tar -xzf amber-terminal.tar.gz --strip-components=1 -C amber-terminal && rm amber-terminal.tar.gz
+          test -f amber-terminal/server.js
+          mkdir -p amber-terminal/data && echo saved > amber-terminal/data/keep.txt
+          mkdir -p amber-terminal && curl -fsSL -o amber-terminal.tar.gz "$TARBALL" && tar -xzf amber-terminal.tar.gz --strip-components=1 -C amber-terminal && rm amber-terminal.tar.gz
+          test -f amber-terminal/data/keep.txt
+          rm -rf amber-terminal/data
+      - name: Check, set up, launch, stop (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Set-Location "$env:USERPROFILE\amber-terminal"
+          node scripts/check.js; if ($LASTEXITCODE -ne 0) { exit 1 }
+          node scripts/setup.js --profile mix
+          node scripts/launch.js; if ($LASTEXITCODE -ne 0) { exit 1 }
+          Start-Sleep -Seconds 2
+          (Invoke-WebRequest -Uri http://127.0.0.1:3787/api/health -UseBasicParsing).Content
+          node scripts/stop.js
+      - name: Check, set up, launch, stop (macOS, Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          cd ~/amber-terminal
+          node scripts/check.js
+          node scripts/setup.js --profile mix
+          node scripts/launch.js
+          sleep 2
+          curl -fsS http://127.0.0.1:3787/api/health
+          node scripts/stop.js

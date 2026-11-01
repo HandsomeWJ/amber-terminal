@@ -1,6 +1,6 @@
 // Playbooks: ready-made prompts that turn what the terminal shows into a decision. Each one has an "ask" prompt
 // (paste into Claude once it's connected: type ASK in the app) and, where it makes sense, a "build" prompt that
-// adds it to the terminal as a permanent screen. Shown on the PLAY screen and on part-timequant.com/bloomberg.
+// adds it to the terminal as a permanent screen. Shown on the PLAY screen.
 // They help you trade better informed and better sized. None of them promises a profit.
 export const PLAYBOOKS = [
   {
