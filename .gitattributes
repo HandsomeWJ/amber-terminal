@@ -1,0 +1,4 @@
+# Windows batch files need CRLF line endings
+*.bat text eol=crlf
+# Test fixtures are byte-exact, including their line endings
+test/fixtures/** -text
