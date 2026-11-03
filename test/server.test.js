@@ -50,20 +50,9 @@ test('writes without the app header are refused', async () => {
   assert.equal(r.status, 403);
 });
 
-test('a custom indicator file can be saved and loaded', async () => {
-  const code = "export default { name: 'Double close', calc: (bars, p, ta) => ({ value: ta.source(bars).map((v) => v * 2) }) };";
-  const r = await (await fetch(`${base}/api/custom`, { method: 'POST', headers: H, body: JSON.stringify({ name: 'Test double close', code }) })).json();
-  assert.equal(r.ok, true);
-  const list = await (await fetch(`${base}/api/custom`)).json();
-  assert.ok(list.some((c) => c.file === 'test-double-close.js'));
-  await fetch(`${base}/api/custom/test-double-close.js`, { method: 'DELETE', headers: H });
-});
-
-test('screener and scan work', async () => {
+test('the screener works', async () => {
   const rows = await (await fetch(`${base}/api/screener?universe=crypto`)).json();
   assert.ok(rows.length > 0);
-  const scan = await (await fetch(`${base}/api/scan`, { method: 'POST', headers: H, body: JSON.stringify({ symbols: ['BTCUSDT'], tf: '1D', indicators: { rsi: { id: 'rsi', params: { length: 14 } } }, rules: [{ left: 'rsi', op: '>', right: 0 }] }) })).json();
-  assert.equal(scan[0].pass, true);
 });
 
 // ---- regressions from the API fuzz (Oct 2026) ----
@@ -76,8 +65,6 @@ test('client mistakes get a 400, not a 500', async () => {
   assert.equal(await status('/%E0%A4%A'), 400);
   assert.equal(await status('/api/state', { method: 'PUT', headers: H, body: 'not json' }), 400);
   assert.equal(await status('/api/state', { method: 'PUT', headers: H, body: '[1,2]' }), 400);
-  assert.equal(await status('/api/scan', { method: 'POST', headers: H, body: '{"symbols":5,"rules":"x"}' }), 400);
-  assert.equal(await status('/api/webhook-test', { method: 'POST', headers: H, body: '{"url":"notaurl"}' }), 400);
 });
 
 test('symbols that could reshape an upstream URL are refused', async () => {
@@ -151,4 +138,61 @@ test('multi-condition alerts: all must hold, or any, and five at most', async ()
   const six = await mk({ conditions: Array.from({ length: 6 }, () => ({ left: 'close', op: '>', right: 1 })) });
   assert.equal(six.status, 400);
   for (const a of [all, any, line]) await fetch(`${base}/api/alerts/${a.id}`, { method: 'DELETE', headers: H });
+});
+
+test('the page may only run its own script files and talk to this server', async () => {
+  const res = await fetch(`${base}/`);
+  const csp = Object.fromEntries(res.headers.get('content-security-policy').split(';').map((d) => d.trim().split(/\s+/)).map(([k, ...v]) => [k, v]));
+  assert.deepEqual(csp['script-src'], ["'self'"]);
+  assert.deepEqual(csp['connect-src'], ["'self'"]);
+  assert.deepEqual(csp['object-src'], ["'none'"]);
+  assert.deepEqual(csp['frame-ancestors'], ["'none'"]);
+  // An inline script would be blocked by that policy, so every script tag must load a file.
+  assert.equal((await res.text()).match(/<script(?![^>]*\bsrc=)[^>]*>/g), null);
+  assert.equal(res.headers.get('x-frame-options'), 'DENY');
+  assert.equal(res.headers.get('referrer-policy'), 'same-origin');
+  assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal((await fetch(`${base}/api/health`)).headers.get('x-content-type-options'), 'nosniff');
+});
+
+test("another website's requests are refused; the app, a typed address and scripts still work", async () => {
+  const site = (s) => status('/api/health', { headers: { 'Sec-Fetch-Site': s } });
+  assert.equal(await site('cross-site'), 403);
+  assert.equal(await site('same-site'), 403);
+  assert.equal(await site('same-origin'), 200);
+  assert.equal(await site('none'), 200);
+  assert.equal(await status('/api/health'), 200);
+  // A link from another site may open the page, but not the API. Node's fetch always sends
+  // Sec-Fetch-Mode: cors, so the browser's navigation headers go out on a plain http request.
+  const http = await import('node:http');
+  const visit = (url) => new Promise((resolve, reject) => {
+    http.get(`${base}${url}`, { headers: { 'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document' } }, (r) => { r.resume(); resolve(r.statusCode); }).on('error', reject);
+  });
+  assert.equal(await visit('/'), 200);
+  assert.equal(await visit('/api/health'), 403);
+});
+
+test('a backtest and the source probe need the app header, and an absurd setting is refused fast', async () => {
+  const strategy = (len) => encodeURIComponent(JSON.stringify({ indicators: { r: { id: 'rci', params: { length: len } } }, entryLong: [{ left: 'r', op: '>', right: 0 }] }));
+  assert.equal(await status(`/api/fn/btst?symbol=SPY&strategy=1`), 403);
+  assert.equal(await status('/api/probe'), 403);
+  const r = await fetch(`${base}/api/fn/btst?symbol=SPY&strategy=${strategy(4294967295)}`, { headers: { 'x-qt': '1' } });
+  assert.equal(r.status, 400);
+  assert.match((await r.json()).error, /up to 10000/);
+});
+
+test('the removed routes that wrote code or fetched any URL are gone', async () => {
+  // A body the old route would refuse, so running this against an old server writes nothing.
+  assert.equal(await status('/api/custom', { method: 'POST', headers: H, body: JSON.stringify({ name: 'x', code: 'x' }) }), 404);
+  assert.equal(await status('/api/scan', { method: 'POST', headers: H, body: '{"symbols":["BTCUSDT"],"rules":[]}' }), 404);
+  assert.equal(await status('/api/webhook-test', { method: 'POST', headers: H, body: '{"url":"http://127.0.0.1:1/"}' }), 404);
+});
+
+test('a HOST variable in the environment no longer opens the server to the network', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const script = "const { start } = await import('./server.js'); const { server } = await start(0); console.log(server.address().address); server.close();";
+  const out = execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+    cwd: new URL('..', import.meta.url), env: { ...process.env, HOST: '0.0.0.0', AMBER_HOST: '', QT_OFFLINE: '1' }, encoding: 'utf8',
+  });
+  assert.equal(out.trim().split('\n').pop(), '127.0.0.1');
 });

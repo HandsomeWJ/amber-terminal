@@ -2778,7 +2778,7 @@ export function compute(id, bars, params = {}) {
   return def.calc(bars, p, ta);
 }
 
-// Custom indicators (files in /custom) register here. calc(bars, params, ta) gets the helpers.
+// Register an extra indicator at runtime (the tests use it). calc(bars, params, ta) gets the helpers.
 export function registerIndicator(def) {
   if (!def?.id || typeof def.calc !== "function")
     throw new Error(

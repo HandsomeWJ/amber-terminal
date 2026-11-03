@@ -147,6 +147,8 @@ export function csvCell(v) {
   let s = String(v ?? "").replace(/\s+/g, " ").trim();
   if (s === "—" || s === "-") s = "";
   if (/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?%?$/.test(s)) s = s.replace(/,/g, "");
+  // Text from filings, names and feeds that starts like a formula would run as one in Excel.
+  if (/^[=+\-@]/.test(s) && !/^[+-]?\$?\d[\d,.]*%?$/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

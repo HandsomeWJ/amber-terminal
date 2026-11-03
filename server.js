@@ -17,17 +17,16 @@ import * as store from "./lib/store.js";
 import * as info from "./lib/market-info.js";
 import * as bbg from "./lib/bloomberg-fields.js";
 import { yahooQuotes } from "./lib/fn/board.js";
-import { registerIndicator } from "./public/lib/indicators.js";
-import { conditionFn } from "./public/lib/backtest.js";
 import { relaunchForProxy, proxyNote } from "./lib/proxy.js";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, "public");
-const CUSTOM = path.join(ROOT, "custom");
 const VERSION = JSON.parse(
   fs.readFileSync(path.join(ROOT, "package.json"), "utf8"),
 ).version;
-const HOST = process.env.HOST || "127.0.0.1";
+// Only AMBER_HOST opens the terminal to your network (with no login), so a HOST variable some
+// other tool exports can't do it by accident.
+const HOST = process.env.AMBER_HOST || "127.0.0.1";
 const START_PORT = Number(process.env.PORT) || 3787;
 
 const MIME = {
@@ -45,11 +44,26 @@ const MIME = {
 // ---------- helpers ----------
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 
+// The page may run only its own script files and talk only to this server, so markup that slips
+// into a screen can't run code. Inline styles stay allowed because the screens build style attributes.
+const PAGE_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join("; ");
+
 function send(res, status, body, headers = {}) {
   const isStr = typeof body === "string" || Buffer.isBuffer(body);
   res.writeHead(status, {
     "Content-Type": isStr ? "text/plain; charset=utf-8" : "application/json",
     "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
     ...headers,
   });
   res.end(isStr ? body : JSON.stringify(body));
@@ -85,6 +99,17 @@ function allowed(req) {
     .replace(/^\[|\]$/g, "");
   const okHosts = new Set(["localhost", "127.0.0.1", "::1", ...lanAddresses()]);
   if (!okHosts.has(host)) return false;
+  // Browsers say where a request comes from. Another site may link to the terminal's page (a
+  // navigation it can't read), but its pages can't call the API. Excel, pandas and scripts send no
+  // such header; nor do older browsers or LAN addresses, so routes with side effects also need the
+  // app header (see handle()).
+  const site = req.headers["sec-fetch-site"];
+  const pageVisit =
+    (req.method === "GET" || req.method === "HEAD") &&
+    req.headers["sec-fetch-mode"] === "navigate" &&
+    req.headers["sec-fetch-dest"] === "document" &&
+    !req.url.startsWith("/api/");
+  if (site && site !== "same-origin" && site !== "none" && !pageVisit) return false;
   if (req.method !== "GET" && req.method !== "HEAD") {
     if (req.headers["x-qt"] !== "1") return false;
     const origin = req.headers.origin;
@@ -112,52 +137,17 @@ function serveStatic(res, baseDir, rel) {
   if (!file.startsWith(baseDir + path.sep)) return send(res, 403, "Forbidden");
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) return send(res, 404, "Not found");
+    const ext = path.extname(file);
     res.writeHead(200, {
-      "Content-Type": MIME[path.extname(file)] || "application/octet-stream",
+      "Content-Type": MIME[ext] || "application/octet-stream",
       "Cache-Control": rel.startsWith("vendor/")
         ? "public, max-age=86400"
         : "no-cache",
+      "X-Content-Type-Options": "nosniff",
+      ...(ext === ".html" ? { "Content-Security-Policy": PAGE_CSP, "X-Frame-Options": "DENY", "Referrer-Policy": "same-origin" } : {}),
     });
     fs.createReadStream(file).pipe(res);
   });
-}
-
-// ---------- custom indicators (your own "Pine scripts", as plain JS files in /custom) ----------
-const slug = (s) =>
-  String(s)
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 60) || "indicator";
-const customErrors = {};
-
-function listCustom() {
-  fs.mkdirSync(CUSTOM, { recursive: true });
-  return fs
-    .readdirSync(CUSTOM)
-    .filter((f) => f.endsWith(".js"))
-    .map((f) => ({
-      file: f,
-      id: `custom:${f.replace(/\.js$/, "")}`,
-      mtime: fs.statSync(path.join(CUSTOM, f)).mtimeMs,
-      error: customErrors[f] || null,
-    }));
-}
-
-async function loadCustom(file) {
-  try {
-    const full = path.join(CUSTOM, file);
-    const mod = await import(
-      `${pathToFileURL(full).href}?v=${fs.statSync(full).mtimeMs}`
-    );
-    registerIndicator({
-      ...mod.default,
-      id: `custom:${file.replace(/\.js$/, "")}`,
-    });
-    delete customErrors[file];
-  } catch (e) {
-    customErrors[file] = e.message;
-  }
 }
 
 // ---------- server-sent events (alerts pop up in the browser) ----------
@@ -170,20 +160,6 @@ alerts.onFire((e) => broadcast("alert", e));
 setInterval(() => {
   for (const res of clients) res.write(": keep-alive\n\n");
 }, 25000).unref();
-
-async function mapLimit(items, n, fn) {
-  const out = new Array(items.length);
-  let i = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(n, items.length) }, async () => {
-      while (i < items.length) {
-        const k = i++;
-        out[k] = await fn(items[k], k);
-      }
-    }),
-  );
-  return out;
-}
 
 // ---------- routes ----------
 async function handle(req, res) {
@@ -205,7 +181,6 @@ async function handle(req, res) {
   if (!p.startsWith("/api/")) {
     if (p === "/" || p === "/index.html")
       return serveStatic(res, PUBLIC, "index.html");
-    if (p.startsWith("/custom/")) return serveStatic(res, CUSTOM, p.slice(8));
     return serveStatic(res, PUBLIC, p.slice(1));
   }
 
@@ -224,6 +199,10 @@ async function handle(req, res) {
         alerts: alerts.list().filter((a) => a.active).length,
       });
     }
+    // A backtest saves a snapshot and the probe calls your own data keys, so a link or an old browser
+    // mustn't trigger them: they need the app's header, which another site can't send.
+    if ((p === "/api/probe" || p === "/api/fn/btst") && req.headers["x-qt"] !== "1")
+      throw httpError(403, "This one needs the header x-qt: 1 (the app sends it).");
     if (p === "/api/probe") return send(res, 200, await data.probeAll());
     if (p === "/api/resolve")
       return send(res, 200, await data.resolve(q.symbol));
@@ -257,34 +236,6 @@ async function handle(req, res) {
           : await data.nasdaqScreener(u === "etf" ? "etf" : "stocks");
       return send(res, 200, rows);
     }
-    if (p === "/api/scan" && req.method === "POST") {
-      const body = await readBody(req);
-      if (!Array.isArray(body.symbols) || !Array.isArray(body.rules ?? []))
-        throw httpError(400, "Send { symbols: [...], rules: [...] }");
-      const symbols = body.symbols.slice(0, 150);
-      const rules = body.rules || [];
-      const results = await mapLimit(symbols, 4, async (symbol) => {
-        try {
-          const { candles } = await data.getCandles(
-            symbol,
-            body.tf || "1D",
-            400,
-          );
-          const make = conditionFn(candles, body.indicators || {});
-          const i = candles.length - 1;
-          const passes = rules.map((r) => make(r)(i));
-          return {
-            symbol,
-            pass: passes.every(Boolean),
-            passes,
-            close: candles[i].close,
-          };
-        } catch (e) {
-          return { symbol, error: e.message };
-        }
-      });
-      return send(res, 200, results);
-    }
     if (p === "/api/state") {
       if (req.method === "GET") return send(res, 200, store.read("state", {}));
       if (req.method === "PUT") {
@@ -298,6 +249,7 @@ async function handle(req, res) {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
+        "X-Content-Type-Options": "nosniff",
         Connection: "keep-alive",
       });
       res.write("retry: 3000\n\n");
@@ -323,50 +275,6 @@ async function handle(req, res) {
       }
       if (req.method === "PATCH")
         return send(res, 200, alerts.update(id, await readBody(req)));
-    }
-    if (p === "/api/webhook-test" && req.method === "POST") {
-      const { url: hook } = await readBody(req);
-      if (!/^https?:\/\/[^\s]+$/i.test(String(hook || "")))
-        throw httpError(400, "Webhook must be an http(s) URL");
-      const r = await fetch(hook, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: "Amber Terminal test alert",
-          content: "Amber Terminal test alert",
-        }),
-        signal: AbortSignal.timeout(10000),
-      });
-      return send(res, 200, { ok: r.ok, status: r.status });
-    }
-    if (p === "/api/custom") {
-      if (req.method === "GET") return send(res, 200, listCustom());
-      if (req.method === "POST") {
-        const { name, code } = await readBody(req);
-        if (!code || !/export\s+default/.test(code))
-          throw Object.assign(
-            new Error(
-              "The file must `export default { name, calc(bars, params, ta) { ... } }`",
-            ),
-            { status: 400 },
-          );
-        const file = `${slug(name)}.js`;
-        fs.mkdirSync(CUSTOM, { recursive: true });
-        fs.writeFileSync(path.join(CUSTOM, file), code);
-        await loadCustom(file);
-        return send(
-          res,
-          customErrors[file] ? 400 : 200,
-          customErrors[file]
-            ? { error: customErrors[file], file }
-            : { ok: true, file, id: `custom:${file.replace(/\.js$/, "")}` },
-        );
-      }
-    }
-    if (p.startsWith("/api/custom/") && req.method === "DELETE") {
-      const file = path.basename(p.slice(12));
-      fs.rmSync(path.join(CUSTOM, file), { force: true });
-      return send(res, 200, { ok: true });
     }
     if (p === "/api/shutdown" && req.method === "POST") {
       // Lets the installer stop a running copy before updating it, on any OS.
@@ -410,7 +318,8 @@ const fnCache = new Map();
 async function loadFn(name) {
   if (!fnCache.has(name)) {
     const file = path.join(ROOT, "lib", "fn", `${name}.js`);
-    fnCache.set(name, fs.existsSync(file) ? await import(pathToFileURL(file).href) : null);
+    if (!fs.existsSync(file)) return null;
+    fnCache.set(name, await import(pathToFileURL(file).href));
   }
   return fnCache.get(name);
 }
@@ -454,7 +363,6 @@ const isMain =
 const relaunched = isMain ? relaunchForProxy() : null;
 if (relaunched) process.exit(await relaunched);
 if (isMain) {
-  for (const c of listCustom()) await loadCustom(c.file);
   const { port } = await start();
   const url = `http://localhost:${port}`;
   alerts.start();

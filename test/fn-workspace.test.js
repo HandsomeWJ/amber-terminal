@@ -216,6 +216,11 @@ test("CSV: cells Excel reads as numbers, titles between tables, a dated file nam
   assert.equal(csvCell("—"), "");
   assert.equal(csvCell('Apple, "Inc"'), '"Apple, ""Inc"""');
   assert.equal(csvCell("2.3T"), "2.3T");
+  assert.equal(csvCell("=HYPERLINK(1)"), "'=HYPERLINK(1)");
+  assert.equal(csvCell("@SUM(A1)"), "'@SUM(A1)");
+  assert.equal(csvCell("-Insider, Jane"), '"\'-Insider, Jane"');
+  assert.equal(csvCell("-5.2%"), "-5.2%");
+  assert.equal(csvCell("-$1,234.56"), '"-$1,234.56"');
   const csv = buildCsv(
     [
       {

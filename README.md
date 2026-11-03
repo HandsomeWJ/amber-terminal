@@ -89,6 +89,8 @@ Ask your AI agent in this folder, for example "add a function called SHRT that s
 
 `public/js/ui.js` has the table, chart and tab helpers. The DATA screen lists the public sources already in use.
 
+The page runs under a strict Content-Security-Policy: fetch outside data in `lib/fn/<name>.js`, attach handlers with `addEventListener` (not `onclick=`), and use only images from this server or `data:` URLs.
+
 ## Excel, Python and the API
 
 Bloomberg sells its data to Excel as BDP (a snapshot: one value per security and field) and BDH (history: one row per day, week or month). Amber has both as web addresses on your computer while it's running. There's no key. Type `API` in the terminal for live examples with your panel's security.
@@ -104,7 +106,7 @@ http://localhost:3787/api/bdp?securities=AAPL%20US%20EQUITY,SPX%20INDEX&fields=N
 - BDP fields: `NAME`, `TICKER`, `CRNCY`, `PX_LAST`, `PX_OPEN`, `PX_HIGH`, `PX_LOW`, `PX_VOLUME`, `PX_CLOSE_1D`, `CHG_NET_1D`, `CHG_PCT_1D`, `CHG_PCT_5D`, `CHG_PCT_1M`, `CHG_PCT_YTD`, `CHG_PCT_1YR`, `HIGH_52WEEK`, `LOW_52WEEK`, `VOLUME_AVG_30D`, `LAST_UPDATE_DT`, and for US-listed stocks `CUR_MKT_CAP`, `GICS_SECTOR_NAME`, `GICS_INDUSTRY_NAME`, `EQY_DVD_YLD_IND`, `DVD_EX_DT`, `PE_RATIO`, `TRAIL_12M_EPS`, `BEST_TARGET_PRICE`. A field it can't fill comes back empty.
 - **Excel:** Data > From Web (Windows) or Data > Get Data > From Web (Mac). Paste a CSV address and press Load. Data > Refresh All updates it.
 - **Python:** `pd.read_csv(url, parse_dates=["date"], index_col="date")` with a BDH address. `examples/quickstart.ipynb` is a short notebook that pulls history, a snapshot, a chart, the Fed path and the yield curve.
-- **Every screen's data:** `/api/fn/<code>` returns the JSON behind each function, for example `/api/fn/wirp`, `/api/fn/gc` or `/api/fn/des?symbol=AAPL`.
+- **Every screen's data:** `/api/fn/<code>` returns the JSON behind each function (BTST also needs the header `x-qt: 1`, because it saves a snapshot), for example `/api/fn/wirp`, `/api/fn/gc` or `/api/fn/des?symbol=AAPL`.
 
 The API only answers to this computer. The port is 3787 unless something else had it; `node scripts/launch.js` prints the one in use.
 

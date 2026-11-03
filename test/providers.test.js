@@ -122,3 +122,15 @@ test("XAUUSD charts gold, and falls back to PAXG when Yahoo is down", async () =
   );
   if (!(r instanceof Error)) assert.ok(r.notes.some((n) => n.includes("PAXG")));
 });
+
+test("news links: feeds keep only web links, and a Nasdaq path can't point at another host", async () => {
+  const { parseRss, nasdaqLink } = await import("../lib/market-info.js");
+  const item = (link) => `<item><title>Headline</title><link>${link}</link><pubDate>Sun, 01 Nov 2026 10:00:00 GMT</pubDate></item>`;
+  const xml = `<rss>${item("https://example.com/a")}${item("javascript:alert(1)")}${item(" data:text/html,x")}${item("JavaScript:x")}</rss>`;
+  assert.deepEqual(parseRss(xml, "Test").map((n) => n.url), ["https://example.com/a"]);
+  assert.equal(nasdaqLink("/market-activity/news/x"), "https://www.nasdaq.com/market-activity/news/x");
+  assert.equal(nasdaqLink("https://www.globenewswire.com/x"), "https://www.globenewswire.com/x");
+  assert.equal(nasdaqLink("@evil.example/x"), "");
+  assert.equal(nasdaqLink("javascript:alert(1)"), "");
+  assert.equal(nasdaqLink(undefined), "");
+});

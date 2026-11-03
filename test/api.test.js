@@ -210,3 +210,10 @@ test("the API still only answers to this computer", async () => {
   });
   assert.equal(status, 403);
 });
+
+test('CSV text that starts like a formula opens as text in Excel; numbers are untouched', () => {
+  const csv = bbg.toCsv(['security', 'NAME', 'PX_LAST'], [{ security: 'X US EQUITY', NAME: '=HYPERLINK("http://x")', PX_LAST: -1.5 }, { security: 'Y', NAME: '@cmd', PX_LAST: '-2.5' }]);
+  const [, a, b] = csv.trim().split('\r\n');
+  assert.equal(a, `X US EQUITY,"'=HYPERLINK(""http://x"")",-1.5`);
+  assert.equal(b, "Y,'@cmd,-2.5");
+});
