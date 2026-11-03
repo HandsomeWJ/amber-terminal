@@ -20,6 +20,8 @@ node scripts/launch.js
 
 There's no `npm install` step. Next time, double-click `start.command` (Mac) or `start.bat` (Windows), or run `./start.sh` (Linux). Stop it with `node scripts/stop.js`.
 
+**Mac app (optional).** `macos/build.sh` builds `Amber Terminal.app` into `~/Applications`: the terminal in a window of its own, with a Dock icon. It uses the server already running from this folder, or starts it. Closing the window keeps it in the Dock so desktop alerts keep coming; quitting leaves the server running so webhook alerts still fire, and Amber Terminal > Stop Server and Quit stops both. It needs Xcode's command line tools (`xcode-select --install`). The first time it starts the server, and again after each rebuild, macOS may ask to let it open this folder. If you move this folder or Node.js, run `macos/build.sh` again. `macos/selftest.sh` checks a test copy of it from end to end.
+
 **Update.** Paste the setup prompt again, in the same folder as the first time. By hand, from the folder that holds `amber-terminal` (macOS, Linux or Git Bash):
 
 ```bash

@@ -19,6 +19,22 @@ jobs:
       - name: Smoke test (real server, real data)
         run: node scripts/smoke.js
 
+  mac-app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build Amber Terminal.app
+        run: macos/build.sh "$RUNNER_TEMP/app"
+      - name: Check the bundle
+        run: |
+          app="$RUNNER_TEMP/app/Amber Terminal.app"
+          codesign --verify "$app"
+          test -s "$app/Contents/Resources/AppIcon.icns"
+          plutil -extract QTInstallDir raw "$app/Contents/Info.plist"
+
   # Runs the setup prompt's own commands (INSTALL-PROMPT.md) in every shell it names, without an
   # AI agent, from a downloaded archive (no git). Each download runs twice, the second time over
   # a saved data folder, the way an update does. The prompt fetches refs/heads/main; CI fetches
